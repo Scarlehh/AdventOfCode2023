@@ -5,7 +5,61 @@
 #include <string.h>
 #include <ctype.h>
 
-uint check_adjacent_symbol(char **data, int height, int width, int i, int j) {
+enum Direction {
+	INVALID=0,
+	TOP_LEFT,
+	TOP,
+	TOP_RIGHT,
+	LEFT,
+	RIGHT,
+	BOTTOM_LEFT,
+	BOTTOM,
+	BOTTOM_RIGHT
+};
+
+struct coordinate {
+	int i;
+	int j;
+};
+
+void get_coordinates(enum Direction dir, struct coordinate *coords) {
+	switch (dir) {
+	case TOP_LEFT:
+		coords->i = -1;
+		coords->j = -1;
+		break;
+	case TOP:
+		coords->i = -1;
+		coords->j = 0;
+		break;
+	case TOP_RIGHT:
+		coords->i = -1;
+		coords->j = 1;
+		break;
+	case LEFT:
+		coords->i = 0;
+		coords->j = -1;
+		break;
+	case RIGHT:
+		coords->i = 0;
+		coords->j = 1;
+		break;
+	case BOTTOM_LEFT:
+		coords->i = 1;
+		coords->j = -1;
+		break;
+	case BOTTOM:
+		coords->i = 1;
+		coords->j = 0;
+		break;
+	case BOTTOM_RIGHT:
+		coords->i = 1;
+		coords->j = +1;
+		break;
+	}
+}
+
+uint check_adjacent_number(char **data, int height, int width, int i, int j) {
 	//printf("    %d %d\n", i, j);
 	if (i < 0 || height <= i) {
 		return 0;
@@ -22,18 +76,16 @@ uint check_adjacent_symbol(char **data, int height, int width, int i, int j) {
 	return 0;
 }
 
-uint check_include_number(char **data, int height, int width, int i, int j) {
+enum Direction check_include_number(char **data, int height, int width, int i, int j) {
 	//printf("Checking: %d %d %d %d\n", height, width, i, j);
-	if (check_adjacent_symbol(data, height, width, i-1, j-1)) return 1;
-	if (check_adjacent_symbol(data, height, width, i-1, j)) return 1;
-	if (check_adjacent_symbol(data, height, width, i-1, j+1)) return 1;
-	if (check_adjacent_symbol(data, height, width, i, j-1)) return 1;
-	if (check_adjacent_symbol(data, height, width, i, j)) return 1;
-	if (check_adjacent_symbol(data, height, width, i, j+1)) return 1;
-	if (check_adjacent_symbol(data, height, width, i+1, j-1)) return 1;
-	if (check_adjacent_symbol(data, height, width, i+1, j)) return 1;
-	if (check_adjacent_symbol(data, height, width, i+1, j+1)) return 1;
-	return 0;
+	for (int d = TOP_LEFT; d <= BOTTOM_RIGHT; d++) {
+		struct coordinate coords;
+		get_coordinates(d, &coords);
+		if (check_adjacent_number(data, height, width, i+coords.i, j+coords.j)) {
+			return i;
+		}
+	}
+	return INVALID;
 }
 
 int main() {
@@ -57,7 +109,10 @@ int main() {
 					number = (number*10) + (value-'0');
 					// If we have already included this number, don't check again
 					if (!include) {
-						include = check_include_number(data, height, width, i, j);
+						enum Direction dir = check_include_number(data, height, width, i, j);
+						if (dir != INVALID) {
+							include = 1;
+						}
 					}
 					j++;
 					value = data[i][j];
