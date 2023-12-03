@@ -1,0 +1,11 @@
+# Ignore all
+*
+
+# Unignore extensions
+!*.*
+
+# Unignore dirs
+!**/
+
+# Ignore temp files
+*~
