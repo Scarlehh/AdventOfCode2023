@@ -35,12 +35,18 @@ int main() {
 	uint width = strlen(data[0]);
 
 	uint total = 0;
+	uint *num_cards = malloc(sizeof(uint) * height);
+	// Initially have 1 of every card
+	for (int i = 0; i < height; i++) {
+		num_cards[i] = 1;
+	}
 
 	for (int i = 0; i < height; i++) {
 		struct Node *winning_numbers;
 		struct Node *owned_numbers;
 		struct Node *populating_list = NULL;
 
+		// Count all the numbers on the owned and winning cards
 		for (char *line_data = strstr(data[i], ":");
 			line_data != NULL;
 			line_data = strstr(line_data, " ")) {
@@ -58,16 +64,32 @@ int main() {
 		}
 		owned_numbers = populating_list;
 
+		// Find out how many matching wins we have
 		uint winnings_total = 0;
 		for (struct Node *owned = owned_numbers; owned; owned = owned->next) {
 			for (struct Node *win = winning_numbers; win; win = win->next) {
 				if (owned->value == win->value) {
-					winnings_total = winnings_total ? winnings_total*2 : 1;
+					winnings_total++;
 				}
 			}
 		}
-		total += winnings_total;
+
+		// Add up the number of cards we've won, where i is our current card, and j
+		// is the future cards we've won. Add the number of current cards because
+		// that is the number of times we'll win those subsequent cards.
+		for (int j = i+1; j < height && j < i+1+winnings_total; j++) {
+			num_cards[j] += num_cards[i];
+		}
+
+		free_list(winning_numbers);
+		free_list(owned_numbers);
 	}
+
+	for (int i = 0; i < height; i++) {
+		total += num_cards[i];
+	}
+
+	free(num_cards);
 	printf("Total: %d\n", total);
 
 	return 0;
