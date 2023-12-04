@@ -69,23 +69,60 @@ uint check_adjacent_number(char **data, int height, int width, int i, int j) {
 	}
 
 	char value = data[i][j];
-	if (!isalnum(value) && value != '.') {
+	if (isdigit(value)) {
 		return 1;
 	}
 
 	return 0;
 }
 
-enum Direction check_include_number(char **data, int height, int width, int i, int j) {
+enum Direction check_include_number(char **data, int height, int width, int i, int j, enum Direction dir) {
 	//printf("Checking: %d %d %d %d\n", height, width, i, j);
-	for (int d = TOP_LEFT; d <= BOTTOM_RIGHT; d++) {
-		struct coordinate coords;
-		get_coordinates(d, &coords);
-		if (check_adjacent_number(data, height, width, i+coords.i, j+coords.j)) {
-			return i;
-		}
+	struct coordinate coords;
+	get_coordinates(dir, &coords);
+	if (check_adjacent_number(data, height, width, i+coords.i, j+coords.j)) {
+		return i;
 	}
 	return INVALID;
+}
+
+uint parse_number(char **data, int height, int width, int i, int j, int *dir) {
+	struct coordinate coords;
+	get_coordinates(*dir, &coords);
+	i += coords.i;
+	j += coords.j;
+
+	if (i < 0 || height <= i) {
+		return 0;
+	}
+	if (j < 0 || width <= j) {
+		return 0;
+	}
+
+	uint number = data[i][j] - '0';
+
+	// Go left
+	int idx = j-1;
+	uint multiplier = 10;
+	while (idx >= 0 && isdigit(data[i][idx])) {
+		number += (data[i][idx] - '0') * multiplier;
+		idx--;
+		multiplier *= 10;
+	}
+
+	// Go right
+	idx = j+1;
+	while (idx < width && isdigit(data[i][idx])) {
+		number = (number * 10) + (data[i][idx] - '0');
+		idx++;
+
+		// Basically a hack cus my solution doesn't handle multiple adjacent axis
+		if (*dir == TOP_LEFT || *dir == TOP || *dir == BOTTOM_LEFT || *dir == BOTTOM) {
+			*dir+=2;
+		}
+	}
+
+	return number;
 }
 
 int main() {
@@ -96,31 +133,29 @@ int main() {
 	uint total_part_numbers = 0;
 
 	for (int i = 0; i < height; i++) {
-		printf("\n%s\n", data[i]);
-
 		for (int j = 0; j < width; j++) {
 			char value = data[i][j];
 
-			if (isdigit(value)) {
-				uint number = 0;
+			if (value == '*') {
+				uint gear_ratio = 0;
 				uint include = 0;
 
-				while (isdigit(value)) {
-					number = (number*10) + (value-'0');
-					// If we have already included this number, don't check again
-					if (!include) {
-						enum Direction dir = check_include_number(data, height, width, i, j);
-						if (dir != INVALID) {
-							include = 1;
+				for (int d = TOP_LEFT; d <= BOTTOM_RIGHT; d++) {
+					if (check_include_number(data, height, width, i, j, d) != INVALID) {
+						uint number = parse_number(data, height, width, i, j, &d);
+						//printf("Parsed %d\n", number);
+						if (!include) {
+							gear_ratio = number;
+						} else {
+							gear_ratio *= number;
 						}
+						include++;
 					}
-					j++;
-					value = data[i][j];
 				}
 
-				if (include) {
-					printf("Including %d\n", number);
-					total_part_numbers += number;
+				if (include > 1) {
+					//printf("Including %d\n", gear_ratio);
+					total_part_numbers += gear_ratio;
 				}
 			}
 		}
