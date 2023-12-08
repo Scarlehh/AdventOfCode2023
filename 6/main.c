@@ -37,56 +37,42 @@ void free_list(struct Node *head) {
 		 item1 && item2;										 \
 		 item1 = item1->next, item2 = item2->next)
 
-struct Node* get_data(const char *data) {
-	struct Node *nodes = NULL;
+unsigned long get_data(const char *data) {
+	unsigned long d=0;
 	for (char *line_data = strstr(data, ":")+1;
-		 line_data != NULL;
-		 line_data = strstr(line_data, " ")) {
-		line_data++;
+		 line_data[0] != '\0';
+		 line_data++) {
 
 		if (isdigit(line_data[0])) {
-			uint number;
-			sscanf(line_data, "%u", &number);
-			nodes = append_list(nodes, number);
+			d *= 10;
+			d += line_data[0]-'0';
 		}
 	}
-	return nodes;
+	return d;
 }
 
 int main() {
 	const char **data  = input;
 	uint height = sizeof(input)/sizeof(data[0]);
 
-	struct Node *times = get_data(data[0]);
-	struct Node *distances = get_data(data[1]);
+	unsigned long time = get_data(data[0]);
+	unsigned long distance = get_data(data[1]);
 
-	printf("Times\tDistances\n");
-	for_each_node_set(times, time, distances, distance) {
-		printf("%u\t%u\n", time->value, distance->value);
-	}
+	printf("Time %u\nDistance %lu\n", time, distance);
 	printf("\n\n");
 
-	struct Node *possibilities = NULL;
-	for_each_node_set(times, time, distances, distance) {
-		uint possible = 0;
-		for (uint speed = 0; speed < time->value; speed++) {
-			uint time_left = time->value - speed;
-			uint distance_travelled = speed * time_left;
+	uint possible = 0;
+	for (uint speed = 0; speed < time; speed++) {
+		unsigned long time_left = time - speed;
+		unsigned long distance_travelled = speed * time_left;
 
-			if (distance_travelled > distance->value) {
-				printf("Possible by holding for %u ms\n", speed);
-				possible++;
-			}
+		if (distance_travelled > distance) {
+			//printf("Possible by holding for %u ms\n", speed);
+			possible++;
 		}
-		printf("%u possibilities with time %u and record %u\n\n",
-			   possible, time->value, distance->value);
-		possibilities = append_list(possibilities, possible);
 	}
 
-	uint margin = 1;
-	for_each_node(possibilities, possibility) {
-		margin *= possibility->value;
-	}
+	uint margin = possible;
 	printf("Margin: %u\n", margin);
 
 	return 0;
