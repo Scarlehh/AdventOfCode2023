@@ -19,6 +19,15 @@ const char *type_input[] = {
 	"23456 1",
 };
 
+const char *joker_input[] = {
+	"JJAAA 1",
+	"AJAJA 1",
+	"TTJAA 1",
+	"T1AAJ 1",
+	"T1AJ2 1",
+	"J3AA6 1"
+};
+
 const char *input[] = {
 	"8KKK8 324",
 	"28885 350",

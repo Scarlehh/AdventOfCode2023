@@ -53,7 +53,7 @@ struct Hand {
 	enum Type type;
 };
 
-char strengths[] = { '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
+char strengths[] = { 'J', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
 
 int card_strength(char card) {
 	for (int i = 0; sizeof(strengths); i++) {
@@ -81,40 +81,76 @@ int strongest_hand(char *handA, char *handB) {
 	return 0;
 }
 
-char n_of_a_kind(char *hand, uint n, char exclude) {
+struct Consumed_Cards {
+	char consumed;
+	uint jokers;
+};
+
+int _n_of_a_kind(char *hand, uint n, struct Consumed_Cards *excludes) {
+	uint skip_jokers = excludes ? excludes->jokers : 0;
+	uint num_jokers = 0;
 	for (int i = 0; i < CARDS_IN_HAND; i++) {
 		uint of_a_kind = 1;
 		char card = hand[i];
-		if (exclude && card == exclude) {
-			continue;
-		}
-		for (int j = i+1; j < CARDS_IN_HAND; j++) {
-			if (card == hand[j]) {
-				of_a_kind++;
+
+		if (excludes) {
+			if (card == excludes->consumed) {
+				continue;
 			}
 		}
-		if (of_a_kind >= n) {
-			return card;
+
+		if (card == 'J') {
+			num_jokers++;
+			continue;
 		}
+
+		for (int j = 0; j < CARDS_IN_HAND; j++) {
+			if (i == j) {
+				continue;
+			}
+			if (card == hand[j]) {
+				of_a_kind++;
+			} else if (hand[j] == 'J') {
+				if (!skip_jokers) {
+					of_a_kind++;
+				}
+			}
+		}
+
+		if (of_a_kind >= n) {
+			if (excludes) {
+				excludes->consumed = card;
+			}
+			return 1;
+		}
+	}
+	if (num_jokers == CARDS_IN_HAND) {
+		return 1;
 	}
 	return 0;
 }
 
-char n_and_m_of_a_kind(char *hand, uint n, uint m) {
-	char first_pair = n_of_a_kind(hand, n, 0);
-	if (first_pair) {
-		char second_pair = n_of_a_kind(hand, m, first_pair);
-		return second_pair;
+int n_and_m_of_a_kind(char *hand, uint n, uint m) {
+	struct Consumed_Cards excludes;
+	excludes.consumed = 0;
+	excludes.jokers = 0;
+	if (_n_of_a_kind(hand, n, &excludes)) {
+		excludes.jokers = 1;
+		return _n_of_a_kind(hand, m, &excludes);
 	}
-	return first_pair;
+	return 0;
 }
 
-#define five_of_a_kind(hand) n_of_a_kind(hand, 5, 0)
-#define four_of_a_kind(hand) n_of_a_kind(hand, 4, 0)
+int n_of_a_kind(char *hand, uint n) {
+	return _n_of_a_kind(hand, n, NULL);
+}
+
+#define five_of_a_kind(hand) n_of_a_kind(hand, 5)
+#define four_of_a_kind(hand) n_of_a_kind(hand, 4)
 #define full_house(hand) n_and_m_of_a_kind(hand, 3, 2)
-#define three_of_a_kind(hand) n_of_a_kind(hand, 3, 0)
+#define three_of_a_kind(hand) n_of_a_kind(hand, 3)
 #define two_pair(hand) n_and_m_of_a_kind(hand, 2, 2)
-#define one_pair(hand) n_of_a_kind(hand, 2, 0)
+#define one_pair(hand) n_of_a_kind(hand, 2)
 
 enum Type determine_type(char *hand) {
 	if (five_of_a_kind(hand)) {
@@ -249,11 +285,11 @@ int main() {
 
 	unsigned long long total_winnings = 0;
 	for(int i = 0; i < height; i++) {
-		//printf("Hand %s has bid %u, type %s and rank %u!\n",
-		//	   hands[i]->hand, hands[i]->bid,
-		//	   type_to_string(hands[i]->type),
-		//	   hands[i]->rank);
-		printf("%u %s %u\n", hands[i]->rank, hands[i]->hand, hands[i]->bid);
+		printf("Hand %s has bid %u, type %s and rank %u!\n",
+			   hands[i]->hand, hands[i]->bid,
+			   type_to_string(hands[i]->type),
+			   hands[i]->rank);
+		//printf("%u %s %u\n", hands[i]->rank, hands[i]->hand, hands[i]->bid);
 		total_winnings += hands[i]->rank * hands[i]->bid;
 	}
 
