@@ -63,13 +63,55 @@ uint get_next_element_index(struct Element **network, uint index,
 	return network[index]->right;
 }
 
+unsigned long long steps_to_end(struct Element **network, struct Node *directions,
+								uint *start_element, uint *start_direction) {
+	unsigned long long steps = 0;
+	struct Node *start_directions = directions;
+	for (int i = 0; i < (*start_direction); i++) {
+		start_directions = start_directions->next;
+	}
+	while (1) {
+		for_each_node(start_directions, dir) {
+			uint current_element = *start_element;
+			*start_element = get_next_element_index(network, current_element, dir->value);
+			(*start_direction)++;
+
+			//printf("%s -> %s (%u)\n", network[current_element]->element,
+			//	   network[(*start_element)]->element, steps);
+
+			steps++;
+			if (network[(*start_element)]->element[ELEMENT_STRING-1] == 'Z') {
+				return steps;
+			}
+		}
+		*start_direction = 0;
+		start_directions = directions;
+	}
+	return -1;
+}
+
+// Maths lol
+unsigned long long gcd(unsigned long long valA, unsigned long long valB) {
+	for (unsigned long long i=2; i <= valA && i <= valB; i++) {
+        if ((valA % i == 0) && (valB % i == 0)) {
+			return i;
+		}
+    }
+	return 1;
+}
+
+unsigned long long lcm(unsigned long long valA, unsigned long long valB) {
+	return (valA * valB)/gcd(valA, valB);
+}
+
+// Main
 int main() {
-	const char **data  = test1_input;
-	uint height = sizeof(test1_input)/sizeof(data[0]);
+	const char **data  = input;
+	uint height = sizeof(input)/sizeof(data[0]);
 
 	// Get the directions first
 	struct Node *directions = NULL;
-	for(int i = 0; data[0][i] != '\0'; i++) {
+	for (int i = 0; data[0][i] != '\0'; i++) {
 		if (data[0][i] == 'L') {
 			directions = append_list(directions, LEFT);
 		} else {
@@ -90,11 +132,11 @@ int main() {
 	uint network_length = height-2;
 	struct Element **network = malloc(network_length * sizeof(struct Element*));
 	uint number_current_elements = 0;
-	for(int i = 0; i < network_length; i++) {
+	for (int i = 0; i < network_length; i++) {
 		const char *line_data = data[i+2];
 
 		network[i] = malloc(sizeof(struct Element));
-		for(int j = 0; j < ELEMENT_STRING; j++) {
+		for (int j = 0; j < ELEMENT_STRING; j++) {
 			network[i]->element[j] = line_data[j];
 		}
 		if(line_data[ELEMENT_STRING-1] == 'A') {
@@ -104,7 +146,7 @@ int main() {
 
 	// Get the left/right mappings
 	uint *current_elements = malloc(number_current_elements * sizeof(uint));
-	for(int i = 0, j = 0; i < network_length; i++) {
+	for (int i = 0, j = 0; i < network_length; i++) {
 		const char *line_data = data[i+2];
 		uint left = element_to_index(network, network_length, line_data + 7);
 		uint right = element_to_index(network, network_length, line_data + 12);
@@ -118,42 +160,37 @@ int main() {
 		}
 	}
 
-	for(int i = 0; i < network_length; i++) {
+	for (int i = 0; i < network_length; i++) {
 		uint left = network[i]->left;
 		uint right = network[i]->right;
 		printf("%s: (%s, %s)\n", network[i]->element,
 			   network[left]->element, network[right]->element);
 	}
-	printf("\n\n");
 
 	uint found_end = 0;
-	unsigned long long steps = 0;
-	while (!found_end) {
-		for_each_node(directions, dir) {
-			for(int i = 0; i < number_current_elements; i++) {
-				uint current_element = current_elements[i];
-				current_elements[i] = get_next_element_index(network,
-															 current_element,
-															 dir->value);
+	// Don't actually need z->z because a->z is the same as z->z.
+	//
+	// This solution really isn't generic enough to handle this. There can be many
+	// loops of z->z that differ within a set, and different starting points for each
+	// loop depending on the directions. The maths for this input is also much
+	// more complicated than a simple LCM formula. I did start trying to do this,
+	// hence the ability to input a starting point for the network and directions,
+	// but realised at this point the loops were the same length.
+	unsigned long long *a_to_z_steps = malloc(number_current_elements * sizeof(unsigned long long));
+	//unsigned long long *z_to_z_steps = malloc(number_current_elements * sizeof(unsigned long long));
+	for (int i = 0; i < number_current_elements; i++) {
+		uint current_direction = 0;
+		a_to_z_steps[i] = steps_to_end(network, directions,
+									   &(current_elements[i]), &current_direction);
+		//z_to_z_steps[i] = steps_to_end(network, directions,
+		//							   &(current_elements[i]), &current_direction);
+		//printf("%llu %llu\n", a_to_z_steps[i], z_to_z_steps[i]);
+	}
 
-				printf("%s -> %s (%u)\n", network[current_element]->element,
-					   network[current_elements[i]]->element, steps);
-
-				if (network[current_elements[i]]->element[ELEMENT_STRING-1] == 'Z') {
-					found_end++;
-				}
-			}
-			printf("\n");
-			steps++;
-			if ((steps & 0xFFFFFFFF) == 0xFFFFFFFF) {
-				printf("%llu\n", steps);
-			}
-			if (found_end == number_current_elements) {
-				break;
-			} else {
-				found_end = 0;
-			}
-		}
+	// Get lowest common multiple of all the loops
+	unsigned long long steps = a_to_z_steps[0];
+	for (int i = 1; i < number_current_elements; i++) {
+		steps = lcm(steps, a_to_z_steps[i]);
 	}
 
 	printf("\nNumber steps: %llu\n", steps);
