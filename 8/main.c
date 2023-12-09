@@ -64,8 +64,8 @@ uint get_next_element_index(struct Element **network, uint index,
 }
 
 int main() {
-	const char **data  = input;
-	uint height = sizeof(input)/sizeof(data[0]);
+	const char **data  = test1_input;
+	uint height = sizeof(test1_input)/sizeof(data[0]);
 
 	// Get the directions first
 	struct Node *directions = NULL;
@@ -89,6 +89,7 @@ int main() {
 	// Get the initial network map
 	uint network_length = height-2;
 	struct Element **network = malloc(network_length * sizeof(struct Element*));
+	uint number_current_elements = 0;
 	for(int i = 0; i < network_length; i++) {
 		const char *line_data = data[i+2];
 
@@ -96,16 +97,25 @@ int main() {
 		for(int j = 0; j < ELEMENT_STRING; j++) {
 			network[i]->element[j] = line_data[j];
 		}
+		if(line_data[ELEMENT_STRING-1] == 'A') {
+			number_current_elements++;
+		}
 	}
 
 	// Get the left/right mappings
-	for(int i = 0; i < network_length; i++) {
+	uint *current_elements = malloc(number_current_elements * sizeof(uint));
+	for(int i = 0, j = 0; i < network_length; i++) {
 		const char *line_data = data[i+2];
 		uint left = element_to_index(network, network_length, line_data + 7);
 		uint right = element_to_index(network, network_length, line_data + 12);
 
 		network[i]->left = left;
 		network[i]->right = right;
+
+		if(line_data[ELEMENT_STRING-1] == 'A') {
+			current_elements[j] = i;
+			j++;
+		}
 	}
 
 	for(int i = 0; i < network_length; i++) {
@@ -116,24 +126,36 @@ int main() {
 	}
 	printf("\n\n");
 
-	uint current_element = element_to_index(network, network_length, "AAA");
 	uint found_end = 0;
-	uint steps = 0;
+	unsigned long long steps = 0;
 	while (!found_end) {
 		for_each_node(directions, dir) {
-			printf("%s -> ", network[current_element]->element);
-			current_element = get_next_element_index(network, current_element,
-													 dir->value);
+			for(int i = 0; i < number_current_elements; i++) {
+				uint current_element = current_elements[i];
+				current_elements[i] = get_next_element_index(network,
+															 current_element,
+															 dir->value);
+
+				printf("%s -> %s (%u)\n", network[current_element]->element,
+					   network[current_elements[i]]->element, steps);
+
+				if (network[current_elements[i]]->element[ELEMENT_STRING-1] == 'Z') {
+					found_end++;
+				}
+			}
+			printf("\n");
 			steps++;
-			printf("%s (%u)\n", network[current_element]->element, steps);
-			if (strncmp(network[current_element]->element,
-						"ZZZ", ELEMENT_STRING) == 0) {
-				found_end = 1;
+			if ((steps & 0xFFFFFFFF) == 0xFFFFFFFF) {
+				printf("%llu\n", steps);
+			}
+			if (found_end == number_current_elements) {
 				break;
+			} else {
+				found_end = 0;
 			}
 		}
 	}
 
-	printf("\nNumber steps: %u\n", steps);
+	printf("\nNumber steps: %llu\n", steps);
 	return 0;
 }
