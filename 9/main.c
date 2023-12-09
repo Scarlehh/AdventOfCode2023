@@ -51,7 +51,7 @@ uint history_difference(struct Node *report) {
 	int next = 0;
 	if (!all_zero) {
 		next = history_difference(differences);
-		next += difference;
+		next = report->value - next;
 	}
 
 	if (differences) {
