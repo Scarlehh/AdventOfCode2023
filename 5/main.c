@@ -84,19 +84,15 @@ int main() {
 		}
 	}
 
-	uint correct_seed = 15880236;
-
 	printf("Initial seeds: ");
 	for_each_node(seeds, seed) {
 		printf("%u-%u; ", seed->value, seed->value+seed->range);
 	}
-	printf("\n\n");
+	printf("\n");
 
 	// Start from first map
-	uint number_passes = 0;
-	uint updates = 1;
-	uint map_start = 2;
-	for (int i = map_start; i < height; i++) {
+	struct Node *mappings = NULL;
+	for (int i = 2; i < height; i++) {
 		const char *line_data = data[i];
 
 		// Processing a map
@@ -106,62 +102,58 @@ int main() {
 			uint range;
 
 			sscanf(line_data, "%d %d %d", &destination, &source, &range);
-
-			for_each_node(seeds, seed) {
-				if (!seed->update) {
-					continue;
-				}
-				if (source <= seed->mapping && seed->mapping < source + range) {
-					if (number_passes == 0) {
-						// Split out any mappings
-						if ((seed->mapping + seed->range) > source + range) {
-							printf("%u-%u > %u-%u so ",
-								   seed->mapping, seed->mapping + seed->range,
-								   source, source + range);
-							uint new_range = (seed->mapping + seed->range) - (source + range);
-							split_seeds(seeds, seed, seed->range - new_range);
-							updates++;
+			mappings = append_list(mappings, source, destination, range);
+		} else {
+			// Split out any seeds ranges that overflow from themappings
+			for_each_node(mappings, map) {
+				for_each_node(seeds, seed) {
+					// Start of seed range is within the mapping
+					if ((map->value <= seed->mapping) &&
+						(seed->mapping < map->value + map->range)) {
+						// End of the seed ranges is larger than the mapping range
+						if (seed->mapping + seed->range > map->value + map->range) {
+							split_seeds(seeds, seed, map->value + map->range - seed->mapping);
 						}
 					}
-					// Update on the second pass
-					else if (number_passes == 1) {
-						uint old_mapping = seed->mapping;
-						seed->mapping = destination + (seed->mapping - source);
-						seed->update = 0;
-						printf("Seed %u (%u) gets mapping to %u\n", seed->value, old_mapping, seed->mapping);
-					}
-				}
-				if (number_passes == 0) {
-					if (seed->mapping < source && seed->mapping + seed->range > source) {
-						split_seeds(seeds, seed, source - seed->mapping);
-						updates++;
+					// Start of the seed ranges isn't within the mapping range
+					if ((seed->mapping < map->value) &&
+						(map->value < seed->mapping + seed->range)) {
+						split_seeds(seeds, seed, map->value - seed->mapping);
 					}
 				}
 			}
-		} else {
-			if (number_passes == 0) {
-				// Once we stop splitting out seed ranges, process the mappings
-				if (updates == 0) {
-					number_passes++;
-				}
-				updates = 0;
-				i = map_start;
-			} else if (number_passes == 1) {
-				// Finished mapping, set ready to update
-				for_each_node(seeds, seed) {
-					seed->update = 1;
-				}
-				i++;
-				number_passes = 0;
-				map_start = i;
 
-				printf("Seeds: ");
+
+			// Process the mappings
+			for_each_node(mappings, map) {
 				for_each_node(seeds, seed) {
-					printf("%u-%u (%u-%u); ",
-						   seed->value, seed->value+seed->range,
-						   seed->mapping, seed->mapping+seed->range);
+					if (!seed->update) {
+						continue;
+					}
+					// If the seed is within the mapping then update the destination.
+					// No need to check the upper bound because we already split the
+					// seeds previously.
+					if ((map->value <= seed->mapping) &&
+						(seed->mapping < map->value + map->range)) {
+						uint old_mapping = seed->mapping;
+						seed->mapping = map->mapping + (seed->mapping - map->value);
+						seed->update = 0;
+						printf("Seed %u (%u) gets mapped to %u from %u (%u)\n",
+							   seed->value, old_mapping, seed->mapping, map->value, map->mapping);
+					}
 				}
-				printf("\n\n");
+			}
+			printf("\n");
+
+			for_each_node(seeds, seed) {
+				seed->update = 1;
+			}
+
+			i++;
+
+			if (mappings) {
+				free_list(mappings);
+				mappings = NULL;
 			}
 		}
 	}
@@ -176,6 +168,8 @@ int main() {
 		}
 	}
 	printf("\nLowest destination: %u\n", lowest_destination);
+
+	free_list(seeds);
 
 	return 0;
 }
