@@ -5,33 +5,35 @@
 #include <string.h>
 #include <ctype.h>
 
-// Lists
+// Stack
 struct Node {
-	struct Node *next;
-	int value;
+	struct Node *previous;
+	int i;
+	int j;
 };
 
-struct Node* append_list(struct Node *head, int value) {
-	if (head == NULL) {
-		head = malloc(sizeof(struct Node));
-		head->next = NULL;
-		head->value = value;
-	} else {
-		head->next = append_list(head->next, value);
-	}
-	return head;
+struct Node* push(struct Node *previous, int i, int j) {
+	struct Node *stack = malloc(sizeof(struct Node));
+	stack->previous = previous;
+	stack->i = i;
+	stack->j = j;
+	return stack;
 }
 
-void free_list(struct Node *head) {
-	if (head->next != NULL) {
-		free_list(head->next);
-	}
-	free(head);
+struct Node *pop(struct Node *stack) {
+	struct Node *previous = stack->previous;
+	free(stack);
+	return previous;
 }
 
-#define for_each_node(list, item)								\
-	for (struct Node *item = list; item; item = item->next)
+void free_stack(struct Node *stack) {
+	if (stack->previous != NULL) {
+		free_stack(stack->previous);
+	}
+	pop(stack);
+}
 
+// Map structures
 enum Direction {
 	NONE = 0,
 	NORTH,
@@ -48,7 +50,8 @@ enum Pipe {
 	NORTH_TO_WEST  = 'J',
 	EAST_TO_SOUTH  = 'F',
 	WEST_TO_SOUTH  = '7',
-	GROUND         = '.'
+	GROUND         = '.',
+	JUNK           = '#'
 };
 
 struct Coordinate {
@@ -56,6 +59,7 @@ struct Coordinate {
 	uint j; // x
 };
 
+// Direction functionality
 enum Direction opposite_direction(enum Pipe pipe, enum Direction direction) {
 	if (direction == NORTH) {
 		if (pipe == NORTH_TO_SOUTH) {
@@ -152,6 +156,7 @@ enum Direction derive_direction(enum Pipe pipe, enum Direction start) {
 	return NONE;
 }
 
+// Pipe/tile functionality
 enum Pipe derive_pipe(uint north, uint south, uint east, uint west) {
 	if (north && south) {
 		return NORTH_TO_SOUTH;
@@ -220,6 +225,7 @@ enum Pipe find_starting_tile(enum Pipe **map, uint i, uint j,
 	return derive_pipe(north, south, east, west);
 }
 
+// Coord helper
 void update_coord(struct Coordinate *coord, enum Direction current_direction) {
 	if (current_direction == NORTH) {
 		coord->i--;
@@ -240,9 +246,12 @@ int main() {
 	const char **data  = input;
 	uint height = sizeof(input)/sizeof(data[0]);
 	uint width  = strlen(data[0]);
+	printf("height %d width %d\n", height, width);
 
 	struct Coordinate start_coord;
-	enum Pipe **map = malloc(height * sizeof(enum Pipe*));
+	enum Pipe **map  = malloc(height * sizeof(enum Pipe*));
+	enum Pipe **path = malloc(height * sizeof(enum Pipe*));
+
 	for (int i = 0; i < height; i++) {
 		map[i] = malloc(width * sizeof(enum Pipe));
 		for (int j = 0; j < width; j++) {
@@ -274,14 +283,18 @@ int main() {
 				map[i][j] = GROUND;
 				break;
 			}
+			path[i] = malloc(width * sizeof(enum Pipe));
+			path[i][j] = map[i][j];
 		}
 	}
 
 	enum Pipe current_tile = find_starting_tile(map, start_coord.i, start_coord.j,
 												height, width);
+	map[start_coord.i][start_coord.j] = current_tile;
 
+	// Print starting map
 	for(int i = 0; i < height; i++) {
-		for(int j = 0; j < height; j++) {
+		for(int j = 0; j < width; j++) {
 			enum Pipe tile = map[i][j];
 			if (tile == START) {
 				tile = current_tile;
@@ -292,51 +305,131 @@ int main() {
 	}
 	printf("\n");
 
-	struct Coordinate coordA = { start_coord.i, start_coord.j };
-	struct Coordinate coordB = { start_coord.i, start_coord.j };
-	enum Direction directionA = derive_direction(current_tile, NONE);
-	enum Direction directionB = opposite_direction(current_tile, directionA);
-	uint steps = 0;
-	printf("DirectionA: %d; DirectionB: %d\n", directionA, directionB);
+	// Find the path
+	struct Coordinate coord = { start_coord.i, start_coord.j };
+	enum Direction direction = derive_direction(current_tile, NONE);
 	do {
-		update_coord(&coordA, directionA);
-		directionA = derive_direction(map[coordA.i][coordA.j], directionA);
+		update_coord(&coord, direction);
+		direction = derive_direction(map[coord.i][coord.j], direction);
 
-		update_coord(&coordB, directionB);
-		directionB = derive_direction(map[coordB.i][coordB.j], directionB);
+		path[coord.i][coord.j] = START;
+	} while (coord.i != start_coord.i || coord.j != start_coord.j);
 
-		steps++;
-
-		//for(int i = 0; i < height; i++) {
-		//	for(int j = 0; j < height; j++) {
-		//		enum Pipe tile = map[i][j];
-		//		if (coordA.i == i && coordA.j == j) {
-		//			printf("A");
-		//		} else if (coordB.i == i && coordB.j == j) {
-		//			printf("B");
-		//		} else {
-		//			printf("%c", tile);
-		//		}
-		//	}
-		//	printf("\n");
-		//}
-		//printf("\n");
-	} while (coordA.i != coordB.i || coordA.j != coordB.j);
-
+	// Process the map to convert junk pipes to ground
 	for(int i = 0; i < height; i++) {
-		for(int j = 0; j < height; j++) {
-			enum Pipe tile = map[i][j];
-			if (coordA.i == i && coordA.j == j) {
-				printf("E");
-			} else {
-				printf("%c", tile);
+		for(int j = 0; j < width; j++) {
+			if (path[i][j] != START) {
+				if (map[i][j] != GROUND) {
+					map[i][j] = GROUND;
+				}
 			}
+		}
+		free(path[i]);
+	}
+	free(path);
+
+	// Expand the map
+	int expanded_map_height = (height*2)-1;
+	int expanded_map_width = (width*2)-1;
+	enum Pipe **expanded_map = malloc(expanded_map_height * sizeof(enum Pipe*));
+	for (int i = 0, map_i = 0; i < height; i++, map_i += 2) {
+		expanded_map[map_i] = malloc(expanded_map_width * sizeof(enum Pipe));
+		expanded_map[map_i+1] = malloc(expanded_map_width * sizeof(enum Pipe));
+
+		for (int j = 0, map_j = 0; j < width; j++, map_j += 2) {
+			enum Pipe tile = map[i][j];
+
+			expanded_map[map_i][map_j] = map[i][j];
+			if (tile == GROUND ||
+				tile == NORTH_TO_WEST) {
+				expanded_map[map_i+1][map_j] = GROUND;
+				expanded_map[map_i][map_j+1] = GROUND;
+				expanded_map[map_i+1][map_j+1] = GROUND;
+			}
+			if (tile == NORTH_TO_SOUTH ||
+				tile == WEST_TO_SOUTH) {
+				expanded_map[map_i+1][map_j] = NORTH_TO_SOUTH;
+				expanded_map[map_i][map_j+1] = GROUND;
+				expanded_map[map_i+1][map_j+1] = GROUND;
+			}
+			if (tile == EAST_TO_WEST ||
+				tile == NORTH_TO_EAST) {
+				expanded_map[map_i+1][map_j] = GROUND;
+				expanded_map[map_i][map_j+1] = EAST_TO_WEST;
+				expanded_map[map_i+1][map_j+1] = GROUND;
+			}
+			if (tile == EAST_TO_SOUTH) {
+				expanded_map[map_i+1][map_j] = NORTH_TO_SOUTH;
+				expanded_map[map_i][map_j+1] = EAST_TO_WEST;
+				expanded_map[map_i+1][map_j+1] = GROUND;
+			}
+		}
+		expanded_map[map_i][(width*2)-1] = '\0';
+		expanded_map[map_i+1][(width*2)-1] = '\0';
+	}
+
+	struct Node *adjacent = push(NULL, 0, 0);
+	// Get initial edge points to fill
+	for (int i = 1; i < expanded_map_height; i++) {
+		if (expanded_map[i][0] == GROUND) {
+			adjacent = push(adjacent, i, 0);
+		}
+		if (expanded_map[i][expanded_map_width-1] == GROUND) {
+			adjacent = push(adjacent, i, expanded_map_width-1);
+		}
+	}
+	for (int j = 1; j < expanded_map_width; j++) {
+		if (expanded_map[0][j] == GROUND) {
+			adjacent = push(adjacent, 0, j);
+		}
+		if (expanded_map[expanded_map_height-1][j] == GROUND) {
+			adjacent = push(adjacent, expanded_map_height-1, j);
+		}
+	}
+	// Flood fill
+	while (adjacent) {
+		int i = adjacent->i;
+		int j = adjacent->j;
+
+		expanded_map[i][j] = JUNK;
+		adjacent = pop(adjacent);
+
+		// Check east
+		if (j+1 < expanded_map_width && expanded_map[i][j+1] == GROUND) {
+			adjacent = push(adjacent, i, j+1);
+		}
+		// Check south
+		if (i+1 < expanded_map_height && expanded_map[i+1][j] == GROUND) {
+			adjacent = push(adjacent, i+1, j);
+		}
+		// Check south-east
+		if (i+1 < expanded_map_height && j+1 < expanded_map_width &&
+			expanded_map[i+1][j+1] == GROUND) {
+			adjacent = push(adjacent, i+1, j+1);
+		}
+
+		// Check west
+		if (j-1 >= 0 && expanded_map[i][j-1] == GROUND) {
+			adjacent = push(adjacent, i, j-1);
+		}
+		// Check north
+		if (i-1 >= 0 && expanded_map[i-1][j] == GROUND) {
+			adjacent = push(adjacent, i-1, j);
+		}
+	}
+
+	uint enclosed_ground = 0;
+	for(int i = 0; i < expanded_map_height; i+=2) {
+		for(int j = 0; j < expanded_map_width; j+=2) {
+			enum Pipe tile = expanded_map[i][j];
+			if (tile == GROUND) {
+				enclosed_ground++;
+			}
+			printf("%c", tile);
 		}
 		printf("\n");
 	}
-	printf("\n\n");
-
-	printf("Steps: %u\n", steps);
+	printf("\n\nEnclosed ground: %u\n", enclosed_ground);
 
 	return 0;
 }

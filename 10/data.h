@@ -17,6 +17,43 @@ const char *test0_input[] = {
 	"LJ..."
 };
 
+const char *test1_input[] = {
+	"...........",
+	".S-------7.",
+	".|F-----7|.",
+	".||.....||.",
+	".||.....||.",
+	".|L-7.F-J|.",
+	".|..|.|..|.",
+	".L--J.L--J.",
+	"..........."
+};
+
+const char *test2_input[] = {
+	"..........",
+	".S------7.",
+	".|F----7|.",
+	".||....||.",
+	".||....||.",
+	".|L-7F-J|.",
+	".|..||..|.",
+	".L--JL--J.",
+	".........."
+};
+
+const char *test3_input[] = {
+	"FF7FSF7F7F7F7F7F---7",
+	"L|LJ||||||||||||F--J",
+	"FL-7LJLJ||||||LJL-77",
+	"F--JF--7||LJLJ7F7FJ-",
+	"L---JF-JLJ.||-FJLJJ7",
+	"|F|F-JF---7F7-L7L|7|",
+	"|FFJF7L7F-JF7|JL---7",
+	"7-L-JL7||F7|L7F-7F7|",
+	"L.L7LFJ|||||FJL7||LJ",
+	"L7JLJL-JLJLJL--JLJ.L"
+};
+
 const char *input[] = {
 	"-L7F7-J77|-FF7F-.|-JF77FF-FLJF--F--77-77-F|-F77.FF|7-F|-L-LL.L.77F7F-J.F-LFJ7-F|-F7J-F|.F7.FF-7.FJ7FL7F|-F-F---F-FL-F-7J7F.F77.F77FJ.77.L.7J",
 	"J.||L-7FL|.|LF|.7JF-LJF-J7J.|7.F-7FF7F|FF-F-JJ-77J|F.|J-|.|.FL7--F77LJF|-LLL-7J||LJ7-JJ.LJL-J|F77|F-7-J..-F-JLFFFJJ||7|7-F-J7--L7-FJLJLJ-L..",
