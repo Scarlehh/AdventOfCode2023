@@ -94,8 +94,8 @@ uint shortest_path(struct Node *galaxies, struct Node *current_galaxy, uint *vis
 	return shortest_length;
 }
 
-uint sum_of_paths(struct Node *galaxies, struct Node *current_galaxy, uint *visited) {
-	uint path = 0;
+unsigned long long sum_of_paths(struct Node *galaxies, struct Node *current_galaxy, uint *visited) {
+	unsigned long long path = 0;
 	for_each_node(galaxies, galaxy_pair) {
 		if (visited[galaxy_pair->value-1]) {
 			continue;
@@ -106,7 +106,7 @@ uint sum_of_paths(struct Node *galaxies, struct Node *current_galaxy, uint *visi
 		path += distance(current_galaxy->galaxy.j,
 						 galaxy_pair->galaxy.j);
 
-		printf("Steps between galaxies %u and %u is %u\n",
+		printf("Steps between galaxies %u and %u is %llu\n",
 			   current_galaxy->value, galaxy_pair->value,
 			   path);
 	}
@@ -115,11 +115,11 @@ uint sum_of_paths(struct Node *galaxies, struct Node *current_galaxy, uint *visi
 
 // Main
 int main() {
-	const char **data  = test_input;
-	uint height = sizeof(test_input)/sizeof(data[0]);
+	const char **data  = input;
+	uint height = sizeof(input)/sizeof(data[0]);
 	uint width  = strlen(data[0]);
 	printf("height %d width %d\n", height, width);
-	uint expansion_multiplier = 1;
+	uint expansion_multiplier = 1000000-1;
 
 	// Get galaxies
 	struct Node *galaxies = NULL;
@@ -165,22 +165,14 @@ int main() {
 	printf("Expand to %u x %u\n", expanded_height, expanded_width);
 
 	// Populate the expanded space map
-	char **expanded_map = malloc(expanded_height * sizeof(char*));
 	struct Node *current_row = rows_to_expand;
 	struct Node *current_col = columns_to_expand;
 	struct Node *current_galaxy = galaxies;
 	for (int i = 0, expanded_i = 0; i < height; i++, expanded_i++) {
-		expanded_map[expanded_i] = malloc(expanded_width * sizeof(char));
-
 		for (int j = 0, expanded_j = 0; j < width; j++, expanded_j++) {
-			expanded_map[expanded_i][expanded_j] = data[i][j];
 			if (current_col && current_col->value == j) {
-				j--;
-				current_col->range--;
-				if (current_col->range == 0) {
-					current_col->range = expansion_multiplier;
-					current_col = current_col->next;
-				}
+				expanded_j += current_col->range;
+				current_col = current_col->next;
 			}
 
 			// Adjust galaxy position due to expansion
@@ -189,38 +181,28 @@ int main() {
 				j == current_galaxy->galaxy.j) {
 				current_galaxy->galaxy.i = expanded_i;
 				current_galaxy->galaxy.j = expanded_j;
-				expanded_map[expanded_i][expanded_j] = current_galaxy->value + '0';
 				current_galaxy = current_galaxy->next;
 			}
 		}
 
 		current_col = columns_to_expand;
 		if (current_row && current_row->value == i) {
-			i--;
-			current_row->range--;
-			if (current_row->range == 0) {
-				current_row->range = expansion_multiplier;
-				current_row = current_row->next;
-			}
+			expanded_i += current_row->range;
+			current_row = current_row->next;
 		}
 	}
 	free_list(rows_to_expand);
 	free_list(columns_to_expand);
 
-	// Print expanded map
-	for (int i = 0; i < expanded_height; i++) {
-		printf("%s\n", expanded_map[i]);
-	}
-
 	uint *galaxies_visited = calloc(number_galaxies, sizeof(uint));
 	//uint path = shortest_path(galaxies, galaxies, galaxies_visited);
-	uint path = 0;
+	unsigned long long path = 0;
 	for_each_node(galaxies, galaxy) {
 		galaxies_visited[galaxy->value-1] = 1;
 		path += sum_of_paths(galaxies, galaxy, galaxies_visited);
 	}
 
-	printf("Shortest Path is %u\n", path);
+	printf("Shortest Path is %llu\n", path);
 
 	return 0;
 }
