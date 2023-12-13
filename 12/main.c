@@ -53,15 +53,13 @@ uint consecutively_damaged(char *statuses, uint damaged_amount) {
 	return 0;
 }
 
-uint matching_arrangements(char *statuses, struct Node *arrangements) {
+int matching_arrangements(char *statuses, struct Node *arrangements) {
 	int i;
 	for (i = 0; statuses[i] && arrangements; i++) {
 		if (statuses[i] != DAMAGED) {
 			continue;
 		}
 		if (consecutively_damaged(statuses+i, arrangements->value)) {
-			if (TRACE)
-				printf("Position %d is damaged %u times\n", i, arrangements->value);
 			i += arrangements->value;
 			arrangements = arrangements->next;
 			if (statuses[i] == DAMAGED) {
@@ -77,7 +75,7 @@ uint matching_arrangements(char *statuses, struct Node *arrangements) {
 	}
 	// Check we've used all the nodes, and there are no mode possible matches
 	if (!arrangements) {
-		for (; statuses[i]; i++) {
+		for (i--; statuses[i]; i++) {
 			if (consecutively_damaged(statuses+i, 1)) {
 				if (TRACE)
 					printf("Match not found -- consecutive after arrangements are processed\n");
@@ -122,9 +120,9 @@ uint matching_unknown_arrangements(char *statuses, uint start, struct Node *arra
 
 // Main
 int main() {
-	const char **data  = test0_input;
-	uint height = sizeof(test0_input)/sizeof(data[0]);
-	uint replacements = 5;
+	const char **data  = input;
+	uint height = sizeof(input)/sizeof(data[0]);
+	uint replacements = 1;
 
 	char **statuses = malloc(height * sizeof(char*));
 	struct Node **arrangements = malloc(height * sizeof(struct Node*));
