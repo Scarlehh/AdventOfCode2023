@@ -122,8 +122,9 @@ uint matching_unknown_arrangements(char *statuses, uint start, struct Node *arra
 
 // Main
 int main() {
-	const char **data  = input;
-	uint height = sizeof(input)/sizeof(data[0]);
+	const char **data  = test0_input;
+	uint height = sizeof(test0_input)/sizeof(data[0]);
+	uint replacements = 5;
 
 	char **statuses = malloc(height * sizeof(char*));
 	struct Node **arrangements = malloc(height * sizeof(struct Node*));
@@ -131,23 +132,30 @@ int main() {
 		uint width  = strlen(data[i]);
 		const char *line_data = data[i];
 		char *arrangements_data = strstr(line_data, " ")+1;
-		uint number_springs = arrangements_data - line_data;
+		uint number_springs = arrangements_data - line_data - 1;
+		uint unfolded_length = (number_springs * replacements) + replacements;
 
-		statuses[i] = malloc(number_springs * sizeof(char));
+		statuses[i] = malloc(unfolded_length * sizeof(char));
 
-		for (int j = 0; j < number_springs; j++) {
-			statuses[i][j] = line_data[j];
+		for (int r = 0; r < replacements; r++) {
+			for (int j = 0; j < number_springs; j++) {
+				statuses[i][(r*(number_springs+1))+j] = line_data[j];
+			}
+			statuses[i][(r*(number_springs+1)+number_springs)] = UNKNOWN;
 		}
-		statuses[i][number_springs-1] = '\0';
+		statuses[i][unfolded_length-1] = '\0';
 
-		for (const char *line_data = arrangements_data;
-			 line_data - 1 != NULL;
-			 line_data = strstr(line_data, ",")+1) {
+		arrangements[i] = NULL;
+		for (int r = 0; r < replacements; r++) {
+			for (const char *line_data = strstr(data[i], " ")+1;
+				 line_data-1 != NULL;
+				 line_data = strstr(line_data, ",")+1) {
 
-			if (isdigit(line_data[0])) {
-				uint arrangement;
-				sscanf(line_data, "%u", &arrangement);
-				arrangements[i] = append_list(arrangements[i], arrangement);
+				if (isdigit(line_data[0])) {
+					uint arrangement;
+					sscanf(line_data, "%u", &arrangement);
+					arrangements[i] = append_list(arrangements[i], arrangement);
+				}
 			}
 		}
 	}
