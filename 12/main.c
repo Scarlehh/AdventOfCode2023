@@ -5,6 +5,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#define TRACE 0
+
 // Lists
 struct Node {
 	struct Node *next;
@@ -58,51 +60,70 @@ uint matching_arrangements(char *statuses, struct Node *arrangements) {
 			continue;
 		}
 		if (consecutively_damaged(statuses+i, arrangements->value)) {
-			printf("Position %d is damaged %u times\n", i, arrangements->value);
+			if (TRACE)
+				printf("Position %d is damaged %u times\n", i, arrangements->value);
 			i += arrangements->value;
 			arrangements = arrangements->next;
 			if (statuses[i] == DAMAGED) {
-				printf("Match not found -- next is damaged\n");
+				if (TRACE)
+					printf("Match not found -- next is damaged\n");
 				return 0;
 			}
 		} else {
-			printf("Match not found -- next consecutive damage is not %u\n", arrangements->value);
+			if (TRACE)
+				printf("Match not found -- next consecutive damage is not %u\n", arrangements->value);
 			return 0;
 		}
 	}
 	// Check we've used all the nodes, and there are no mode possible matches
-	if (!arrangements && (!statuses[i] || !consecutively_damaged(statuses+i, 1))) {
-		printf("Match found\n");
+	if (!arrangements) {
+		for (; statuses[i]; i++) {
+			if (consecutively_damaged(statuses+i, 1)) {
+				if (TRACE)
+					printf("Match not found -- consecutive after arrangements are processed\n");
+				return 0;
+			}
+		}
+		if (TRACE)
+			printf("Match found\n");
 		return 1;
 	}
-	printf("Match not found -- arrangements left\n");
+	if (TRACE)
+		printf("Match not found -- arrangements left\n");
 	return 0;
 }
 
-void populate_unknowns(char *statuses, uint start) {
-	uint unknowns;
+uint matching_unknown_arrangements(char *statuses, uint start, struct Node *arrangements) {
+	uint unknowns = 0;
+	uint matching = 0;
 	for (int i = start; statuses[i]; i++) {
 		if (statuses[i] == UNKNOWN) {
-			unknowns++;
+			unknowns=1;
 
 			statuses[i] = DAMAGED;
-			populate_unknowns(statuses, i);
+			matching += matching_unknown_arrangements(statuses, i+1, arrangements);
 
 			statuses[i] = OPERATIONAL;
-			populate_unknowns(statuses, i);
+			matching += matching_unknown_arrangements(statuses, i+1, arrangements);
 
 			statuses[i] = UNKNOWN;
+			break;
 		}
 	}
+	// At this point we're done, so check for matching arrangements
 	if (!unknowns) {
-		printf("%s\n", statuses);
+		if (TRACE)
+			printf("%s\n", statuses);
+		return matching_arrangements(statuses, arrangements);
 	}
+
+	return matching;
 }
 
 // Main
 int main() {
-	const char **data  = bad_input;
-	uint height = sizeof(bad_input)/sizeof(data[0]);
+	const char **data  = input;
+	uint height = sizeof(input)/sizeof(data[0]);
 
 	char **statuses = malloc(height * sizeof(char*));
 	struct Node **arrangements = malloc(height * sizeof(struct Node*));
@@ -131,6 +152,7 @@ int main() {
 		}
 	}
 
+	uint total_arrangements = 0;
 	for (int i = 0; i < height; i++) {
 		for (int j = 0; statuses[i][j]; j++) {
 			printf("%c", statuses[i][j]);
@@ -140,12 +162,12 @@ int main() {
 			printf("%u ", a->value);
 		}
 		printf("\n");
-		populate_unknowns(statuses[i], 0);
-
-		matching_arrangements(statuses[i], arrangements[i]);
-
-		printf("\n\n");
+		uint sum_arrangements = matching_unknown_arrangements(statuses[i], 0, arrangements[i]);
+		total_arrangements += sum_arrangements;
+		printf("%u sum arrangements for %s\n", sum_arrangements, statuses[i]);
+		printf("\n");
 	}
+	printf("Total arrangements: %u\n", total_arrangements);
 
 	return 0;
 }
