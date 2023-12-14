@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #define TRACE 0
 
@@ -118,6 +119,23 @@ uint matching_unknown_arrangements(char *statuses, uint start, struct Node *arra
 	return matching;
 }
 
+struct SearchSpace {
+	char **statuses;
+	struct Node **arrangements;
+	uint i;
+	uint range;
+	uint matching;
+};
+
+void *thread_matching_unknown_arrangements(void *vargp) {
+	struct SearchSpace *search_space = (struct SearchSpace*) vargp;
+
+	for (int i = search_space->i; i < search_space->range; i++) {
+		search_space->matching += matching_unknown_arrangements(search_space->statuses[i], 0,
+																search_space->arrangements[i]);
+	}
+}
+
 // Main
 int main() {
 	const char **data  = input;
@@ -145,9 +163,10 @@ int main() {
 
 		arrangements[i] = NULL;
 		for (int r = 0; r < replacements; r++) {
-			for (const char *line_data = strstr(data[i], " ")+1;
-				 line_data-1 != NULL;
-				 line_data = strstr(line_data, ",")+1) {
+			for (const char *line_data = strstr(data[i], " ");
+				 line_data != NULL;
+				 line_data = strstr(line_data, ",")) {
+				line_data++;
 
 				if (isdigit(line_data[0])) {
 					uint arrangement;
@@ -158,7 +177,6 @@ int main() {
 		}
 	}
 
-	uint total_arrangements = 0;
 	for (int i = 0; i < height; i++) {
 		for (int j = 0; statuses[i][j]; j++) {
 			printf("%c", statuses[i][j]);
@@ -168,10 +186,32 @@ int main() {
 			printf("%u ", a->value);
 		}
 		printf("\n");
-		uint sum_arrangements = matching_unknown_arrangements(statuses[i], 0, arrangements[i]);
-		total_arrangements += sum_arrangements;
-		printf("%u sum arrangements for %s\n", sum_arrangements, statuses[i]);
-		printf("\n");
+	}
+	printf("\n");
+
+	uint threads = 4;
+	pthread_t *thread_id = malloc(threads * sizeof(pthread_t));
+	struct SearchSpace *search_space = malloc(threads * sizeof(struct SearchSpace*));
+	for (int i = 0; i < threads; i++) {
+		search_space[i].statuses = statuses;
+		search_space[i].arrangements = arrangements;
+		search_space[i].i = (height/threads) * i;
+		search_space[i].range = (height/threads) * (i+1);
+		if (i+1 == threads) {
+			search_space[i].range = height;
+		}
+		search_space[i].matching = 0;
+		printf("Thread %u %u\n", search_space[i].i, search_space[i].range);
+
+		pthread_create(&thread_id[i], NULL, thread_matching_unknown_arrangements, (void *) &search_space[i]);
+	}
+
+	uint total_arrangements = 0;
+	for (int i = 0; i < threads; i++) {
+		pthread_join(thread_id[i], NULL);
+		uint ta = search_space[i].matching;
+		printf("Arrangements: %u\n", ta);
+		total_arrangements += ta;
 	}
 	printf("Total arrangements: %u\n", total_arrangements);
 
