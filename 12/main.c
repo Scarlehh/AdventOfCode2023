@@ -41,10 +41,12 @@ enum Status {
 	UNKNOWN      = '?'
 };
 
-uint consecutively_damaged(char *statuses, uint damaged_amount) {
+uint consecutively_damaged(char *statuses, uint damaged_amount, uint ignore_unknown) {
 	uint consecutive = 0;
 	for (int i = 0; statuses[i] && i < damaged_amount; i++) {
-		if (statuses[i] != OPERATIONAL) {
+		if (ignore_unknown && statuses[i] == DAMAGED) {
+			consecutive++;
+		} else if (!ignore_unknown && statuses[i] != OPERATIONAL) {
 			consecutive++;
 		}
 	}
@@ -54,69 +56,62 @@ uint consecutively_damaged(char *statuses, uint damaged_amount) {
 	return 0;
 }
 
-int matching_arrangements(char *statuses, struct Node *arrangements) {
-	int i;
-	for (i = 0; statuses[i] && arrangements; i++) {
-		if (statuses[i] != DAMAGED) {
-			continue;
-		}
-		if (consecutively_damaged(statuses+i, arrangements->value)) {
-			i += arrangements->value;
-			arrangements = arrangements->next;
-			if (statuses[i] == DAMAGED) {
-				if (TRACE)
-					printf("Match not found -- next is damaged\n");
-				return 0;
-			}
-		} else {
+int matching_arrangement(char *statuses, struct Node *arrangement) {
+	if (consecutively_damaged(statuses, arrangement->value, 0)) {
+		if (statuses[arrangement->value] == DAMAGED) {
 			if (TRACE)
-				printf("Match not found -- next consecutive damage is not %u\n", arrangements->value);
-			return 0;
-		}
-	}
-	// Check we've used all the nodes, and there are no mode possible matches
-	if (!arrangements) {
-		for (i--; statuses[i]; i++) {
-			if (consecutively_damaged(statuses+i, 1)) {
-				if (TRACE)
-					printf("Match not found -- consecutive after arrangements are processed\n");
-				return 0;
-			}
+				printf("Match not found -- after %u is damaged %s\n", arrangement->value, statuses);
+			return -1;
 		}
 		if (TRACE)
 			printf("Match found\n");
 		return 1;
 	}
 	if (TRACE)
-		printf("Match not found -- arrangements left\n");
+		printf("Match not found -- next consecutive damage is not %u\n", arrangement->value);
 	return 0;
 }
 
-uint matching_unknown_arrangements(char *statuses, uint start, struct Node *arrangements) {
-	uint unknowns = 0;
-	uint matching = 0;
-	for (int i = start; statuses[i]; i++) {
-		if (statuses[i] == UNKNOWN) {
-			unknowns=1;
+unsigned long long matching_unknown_arrangements(char *statuses, struct Node *arrangements) {
+	unsigned long long matching = 0;
 
+	for (int i = 0; statuses[i]; i++) {
+		if (!arrangements) {
+			if (consecutively_damaged(statuses+i, 1, 1)) {
+				if (TRACE)
+					printf("Match not found -- consecutive after arrangements are processed\n");
+				return matching;
+			}
+		}
+		else if (statuses[i] == DAMAGED) {
+			if (matching_arrangement(statuses+i, arrangements) == 1) {
+				i += arrangements->value;
+				arrangements = arrangements->next;
+			} else {
+				return matching;
+			}
+		} else if (statuses[i] == UNKNOWN) {
 			statuses[i] = DAMAGED;
-			matching += matching_unknown_arrangements(statuses, i+1, arrangements);
+			if (matching_arrangement(statuses+i, arrangements) == 1) {
+				uint jump = arrangements->value+1;
+				matching += matching_unknown_arrangements(statuses+i+jump,
+														  arrangements->next);
+			}
 
 			statuses[i] = OPERATIONAL;
-			matching += matching_unknown_arrangements(statuses, i+1, arrangements);
+			matching += matching_unknown_arrangements(statuses+i+1, arrangements);
 
 			statuses[i] = UNKNOWN;
 			break;
 		}
 	}
-	// At this point we're done, so check for matching arrangements
-	if (!unknowns) {
+	if (arrangements) {
 		if (TRACE)
-			printf("%s\n", statuses);
-		return matching_arrangements(statuses, arrangements);
+			printf("Match not found -- arrangements left\n");
+		return matching;
 	}
 
-	return matching;
+	return 1;
 }
 
 struct SearchSpace {
@@ -131,8 +126,9 @@ void *thread_matching_unknown_arrangements(void *vargp) {
 	struct SearchSpace *search_space = (struct SearchSpace*) vargp;
 
 	for (int i = search_space->i; i < search_space->range; i++) {
-		search_space->matching += matching_unknown_arrangements(search_space->statuses[i], 0,
+		search_space->matching += matching_unknown_arrangements(search_space->statuses[i],
 																search_space->arrangements[i]);
+		printf("%u/%u\n", i, search_space->range);
 	}
 }
 
@@ -140,7 +136,7 @@ void *thread_matching_unknown_arrangements(void *vargp) {
 int main() {
 	const char **data  = input;
 	uint height = sizeof(input)/sizeof(data[0]);
-	uint replacements = 1;
+	uint replacements = 5;
 
 	char **statuses = malloc(height * sizeof(char*));
 	struct Node **arrangements = malloc(height * sizeof(struct Node*));
@@ -177,6 +173,7 @@ int main() {
 		}
 	}
 
+	unsigned long long total_arrangements = 0;
 	for (int i = 0; i < height; i++) {
 		for (int j = 0; statuses[i][j]; j++) {
 			printf("%c", statuses[i][j]);
@@ -186,6 +183,9 @@ int main() {
 			printf("%u ", a->value);
 		}
 		printf("\n");
+		//unsigned long long ta = matching_unknown_arrangements(statuses[i], arrangements[i]);
+		//printf("Arrangements %u\n\n", ta);
+		//total_arrangements += ta;
 	}
 	printf("\n");
 
@@ -206,7 +206,6 @@ int main() {
 		pthread_create(&thread_id[i], NULL, thread_matching_unknown_arrangements, (void *) &search_space[i]);
 	}
 
-	uint total_arrangements = 0;
 	for (int i = 0; i < threads; i++) {
 		pthread_join(thread_id[i], NULL);
 		uint ta = search_space[i].matching;
