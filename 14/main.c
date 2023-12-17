@@ -7,6 +7,7 @@
 #include <ctype.h>
 
 #define TRACE 1
+#define CYCLES 1000000000
 
 uint compare_platform(char **platformA, char** platformB, uint height) {
 	for (int i = 0; i < height; i++) {
@@ -222,10 +223,10 @@ void print_pattern(char **data, uint height) {
 
 // Main
 int main() {
-	const char **data  = test_input;
-	uint height = sizeof(test_input)/sizeof(data[0]);
+	const char **data  = input;
+	uint height = sizeof(input)/sizeof(data[0]);
 	uint width = strlen(data[0]);
-	unsigned long long cycles = 1000000000;
+	unsigned long long cycles = 0;
 
 	char **platform = malloc(height * sizeof(char*));
 	for (int i = 0; i < height; i++) {
@@ -237,16 +238,15 @@ int main() {
 
 	struct Map *platform_mappings = init_map();
 	char **loop_beginning = NULL;
-	uint loop_size = 0;
+	uint loop_size = 1;
 	uint loop_closed = 0;
 	add_map(platform_mappings, platform);
 	do {
+		cycles++;
+		if (TRACE)
+			printf("Cycle %llu\n", cycles);
 		if (TRACE)
 			print_pattern(platform, height);
-
-		if (loop_closed && ((cycles % loop_size) == 0)) {
-			break;
-		}
 
 		char **new_platform = spin_platform(platform, height, width, platform_mappings);
 		if (get_map(platform_mappings, platform) == NULL) {
@@ -258,20 +258,19 @@ int main() {
 				loop_beginning = new_platform;
 			} else {
 				if (new_platform == loop_beginning) {
-					loop_closed = 1;
-					printf("Loop is %u\n", loop_size);
+					loop_closed++;
+					if (TRACE)
+						printf("Loop is %u\n", loop_size);
+					cycles += ((CYCLES-cycles) / loop_size) * (loop_size);
 				} else if (!loop_closed) {
 					loop_size++;
 				}
 			}
 		}
 		platform = new_platform;
-		cycles--;
+	} while(cycles < CYCLES);
 
-		if (TRACE)
-			printf("Cycles %llu\n\n", cycles);
-	} while(cycles > 0);
-
+	print_pattern(platform, height);
 	uint load = 0;
 	for (int i = 0; i < height; i++) {
 		for (int j = 0; j < width; j++) {
