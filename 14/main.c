@@ -49,7 +49,7 @@ void free_list(struct Node *head) {
 void add_map(struct Node *map, char **input) {
 	append_list(map, input);
 	if (TRACE) {
-		printf("Adding %p to map\n", input);
+		printf("Adding input %p to map\n", input);
 	}
 }
 
@@ -57,7 +57,7 @@ char **get_map(struct Node *map, char **input) {
 	for_each_node(map, node) {
 		if (node->input == input) {
 			if (TRACE)
-				printf("Looked up %p and found %p\n", input, node->output);
+				printf("Looked up input %p and found output %p\n", input, node->output);
 			return node->output;
 		}
 	}
@@ -69,8 +69,6 @@ char **get_map(struct Node *map, char **input) {
 char **find_map(struct Node *map, char **input, uint height) {
 	for_each_node(map, node) {
 		if (compare_platform(node->input, input, height)) {
-			if (TRACE)
-				printf("Found a match!\n");
 			return node->input;
 		}
 	}
@@ -81,7 +79,7 @@ struct Node* update_map(struct Node *map, char **input, char **output) {
 	for_each_node(map, node) {
 		if (node->input == input) {
 			if (TRACE)
-				printf("Adding %p to %p\n", input, output);
+				printf("Adding to input %p the output %p\n", input, output);
 			node->output = output;
 			return node;
 		}
@@ -152,11 +150,6 @@ void move_boulder(char **platform, int i, int j, int height, int width, enum Dir
 }
 
 char** spin_platform(char **platform, uint height, uint width, struct Node *platforms) {
-	char **platform_cache = get_map(platforms, platform);
-	if (platform_cache != NULL) {
-		return platform_cache;
-	}
-
 	if (TRACE)
 		printf("No cached result\n");
 	platform = copy_platform(platform, height, width);
@@ -177,7 +170,7 @@ char** spin_platform(char **platform, uint height, uint width, struct Node *plat
 	}
 
 	// Close the loop of mappings - everything should cache hit after this
-	platform_cache = find_map(platforms, platform, height);
+	char **platform_cache = find_map(platforms, platform, height);
 	if (platform_cache != NULL) {
 		free_platform(platform, height);
 		return platform_cache;
@@ -207,19 +200,21 @@ int main() {
 		}
 	}
 
-	struct Node *platform_mappings = append_list(platform_mappings, platform);
+	struct Node *platform_mappings = append_list(NULL, platform);
 	char **loop_beginning = NULL;
 	uint loop_size = 1;
-	uint loop_closed = 0;
 	do {
 		cycles++;
 		if (TRACE)
-			printf("Cycle %llu\n", cycles);
-		if (TRACE)
 			print_pattern(platform, height);
+		if (TRACE)
+			printf("Cycle %llu\n", cycles);
 
-		char **new_platform = spin_platform(platform, height, width, platform_mappings);
-		if (get_map(platform_mappings, platform) == NULL) {
+		// Check if we have a cache of the map
+		char **new_platform = get_map(platform_mappings, platform);
+		if (new_platform == NULL) {
+			// Do a manual spin and update our mappings
+			new_platform = spin_platform(platform, height, width, platform_mappings);
 			update_map(platform_mappings, platform, new_platform);
 			add_map(platform_mappings, new_platform);
 		} else {
@@ -228,15 +223,17 @@ int main() {
 				loop_beginning = new_platform;
 			} else {
 				if (new_platform == loop_beginning) {
-					loop_closed++;
 					if (TRACE)
 						printf("Loop is %u\n", loop_size);
+					// Big skip and then just finish normally
 					cycles += ((CYCLES-cycles) / loop_size) * (loop_size);
-				} else if (!loop_closed) {
+				} else {
 					loop_size++;
 				}
 			}
 		}
+		if (TRACE)
+			printf("\n");
 		platform = new_platform;
 	} while(cycles < CYCLES);
 
