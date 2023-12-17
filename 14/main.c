@@ -46,41 +46,15 @@ void free_list(struct Node *head) {
 #define for_each_node(list, item)								\
 	for (struct Node *item = list; item; item = item->next)
 
-#define MAP_SIZE 1024
-
-uint32_t hash(uint32_t a) {
-    a = (a ^ 61) ^ (a >> 16);
-    a = a + (a << 3);
-    a = a ^ (a >> 4);
-    a = a * 0x27d4eb2d;
-    a = a ^ (a >> 15);
-    return a % MAP_SIZE;
-}
-
-struct Map {
-	struct Node *mappings[MAP_SIZE];
-};
-
-struct Map *init_map() {
-	struct Map *map = malloc(sizeof(struct Map));
-	for (int i = 0; i < MAP_SIZE; i++) {
-		map->mappings[i] = NULL;
-	}
-	return map;
-}
-
-struct Node* add_map(struct Map *map, char **input) {
-	uint key = hash(input);
-	map->mappings[key] = append_list(map->mappings[key], input);
+void add_map(struct Node *map, char **input) {
+	append_list(map, input);
 	if (TRACE) {
 		printf("Adding %p to map\n", input);
 	}
-	return map->mappings[key];
 }
 
-char **get_map(struct Map *map, char **input) {
-	uint key = hash(input);
-	for_each_node(map->mappings[key], node) {
+char **get_map(struct Node *map, char **input) {
+	for_each_node(map, node) {
 		if (node->input == input) {
 			if (TRACE)
 				printf("Looked up %p and found %p\n", input, node->output);
@@ -92,22 +66,19 @@ char **get_map(struct Map *map, char **input) {
 	return NULL;
 }
 
-char **find_map(struct Map *map, char **input, uint height) {
-	for (int i = 0; i < MAP_SIZE; i++) {
-		for_each_node(map->mappings[i], node) {
-			if (compare_platform(node->input, input, height)) {
-				if (TRACE)
-					printf("Found a match!\n");
-				return node->input;
-			}
+char **find_map(struct Node *map, char **input, uint height) {
+	for_each_node(map, node) {
+		if (compare_platform(node->input, input, height)) {
+			if (TRACE)
+				printf("Found a match!\n");
+			return node->input;
 		}
 	}
 	return NULL;
 }
 
-struct Node* update_map(struct Map *map, char **input, char **output) {
-	uint key = hash(input);
-	for_each_node(map->mappings[key], node) {
+struct Node* update_map(struct Node *map, char **input, char **output) {
+	for_each_node(map, node) {
 		if (node->input == input) {
 			if (TRACE)
 				printf("Adding %p to %p\n", input, output);
@@ -180,7 +151,7 @@ void move_boulder(char **platform, int i, int j, int height, int width, enum Dir
 	}
 }
 
-char** spin_platform(char **platform, uint height, uint width, struct Map *platforms) {
+char** spin_platform(char **platform, uint height, uint width, struct Node *platforms) {
 	char **platform_cache = get_map(platforms, platform);
 	if (platform_cache != NULL) {
 		return platform_cache;
@@ -236,11 +207,10 @@ int main() {
 		}
 	}
 
-	struct Map *platform_mappings = init_map();
+	struct Node *platform_mappings = append_list(platform_mappings, platform);
 	char **loop_beginning = NULL;
 	uint loop_size = 1;
 	uint loop_closed = 0;
-	add_map(platform_mappings, platform);
 	do {
 		cycles++;
 		if (TRACE)
