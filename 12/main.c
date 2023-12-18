@@ -10,20 +10,24 @@
 // Lists
 struct Node {
 	struct Node *next;
-	int value;
+	unsigned long long value;
 	int output;
 };
 
-struct Node* append_list(struct Node *head, int value) {
+struct Node* _append_list(struct Node *head, int value, int output) {
 	if (head == NULL) {
 		head = malloc(sizeof(struct Node));
 		head->next = NULL;
 		head->value = value;
-		head->output = 0;
+		head->output = output;
 	} else {
-		head->next = append_list(head->next, value);
+		head->next = _append_list(head->next, value, output);
 	}
 	return head;
+}
+
+struct Node* append_list(struct Node *head, int value) {
+	return _append_list(head, value, 0);
 }
 
 void free_list(struct Node *head) {
@@ -42,16 +46,16 @@ enum Status {
 	UNKNOWN      = '?'
 };
 
-#define MAP_SIZE 1024
+#define MAP_SIZE 524288
 
 uint hash(char *str, uint meta) {
     unsigned long hash = 5381;
     int c;
 
-    while (c = *str++) {
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+	for (uint i = 0; i < meta; i++) {
+        hash = ((hash << 5) + hash) + str[i]; /* hash * 33 + c */
 	}
-	hash = (hash << 4) + meta;
+	hash = (hash << 4) | meta;
 
     return hash % MAP_SIZE;
 }
@@ -59,18 +63,18 @@ uint hash(char *str, uint meta) {
 uint str_meta_enc(char *str, uint meta) {
 	uint enc = 0;
 	char c;
-	while (c = *str++) {
-		if (c == OPERATIONAL) {
+	for (uint i = 0; i < meta; i++) {
+		if (str[i] == OPERATIONAL) {
 			enc |= 0x1;
-		} else if (c == DAMAGED) {
-			enc |= 0x2;
-		} else if (c == UNKNOWN) {
-			enc |= 0x3;
+		} else if (str[i] == DAMAGED) {
+			enc |= 0x10;
+		} else if (str[i] == UNKNOWN) {
+			enc |= 0x11;
 		}
-		enc << 2;
+		enc = (enc << 2);
 	}
 	enc = (enc << 4) + meta;
-	return enc;
+	return enc % MAP_SIZE;
 }
 
 struct Map {
@@ -85,42 +89,28 @@ struct Map *init_map() {
 	return map;
 }
 
-struct Node* add_map(struct Map *map, char **input, uint meta) {
-	uint key = hash(input, meta);
-	uint enc = str_meta_enc(input, meta);
-	map->mappings[key] = append_list(map->mappings[key], enc);
+void add_map(struct Map *map, char **input, uint meta, uint output) {
+	//uint key = hash(input, meta);
+	uint key = str_meta_enc(input, meta);
+	map->mappings[key] = _append_list(map->mappings[key], key, output);
 	if (TRACE) {
-		printf("Adding %s %u to map\n", input, meta);
+		printf("Adding result %u to %s %u with enc %u\n", output, input, meta, key);
 	}
-	return map->mappings[key];
 }
 
-char **get_map(struct Map *map, char **input, uint meta) {
-	uint key = hash(input, meta);
-	uint enc = str_meta_enc(input, meta);
+int get_map(struct Map *map, char **input, uint meta) {
+	//uint key = hash(input, meta);
+	uint key = str_meta_enc(input, meta);
 	for_each_node(map->mappings[key], node) {
-		if (node->value == enc) {
+		if (node->value == key) {
 			if (TRACE)
-				printf("Looked up %p and found %p\n", input, node->output);
+				printf("Looked up %s with enc %u and found %u\n", input, key, node->output);
 			return node->output;
 		}
 	}
 	if (TRACE)
-		printf("Looked up %p and missed\n", input);
-	return NULL;
-}
-
-struct Node* update_map(struct Map *map, char **input, uint meta, uint output) {
-	uint key = hash(input, meta);
-	uint enc = str_meta_enc(input, meta);
-	for_each_node(map->mappings[key], node) {
-		if (node->value == enc) {
-			if (TRACE)
-				printf("Adding result %u to %s %u\n", output, input, meta);
-			node->output = output;
-			return node;
-		}
-	}
+		printf("Looked up %s and missed\n", input);
+	return -1;
 }
 
 uint consecutively_damaged(char *statuses, uint damaged_amount, uint ignore_unknown) {
@@ -138,23 +128,32 @@ uint consecutively_damaged(char *statuses, uint damaged_amount, uint ignore_unkn
 	return 0;
 }
 
-int matching_arrangement(char *statuses, struct Node *arrangement) {
+int matching_arrangement(char *statuses, struct Node *arrangement, struct Map *map) {
+	int out = get_map(map, statuses, arrangement->value+1);
+	if (out != -1) {
+		return out;
+	}
+
+	out = 0;
 	if (consecutively_damaged(statuses, arrangement->value, 0)) {
 		if (statuses[arrangement->value] == DAMAGED) {
 			if (TRACE)
 				printf("Match not found -- after %u is damaged %s\n", arrangement->value, statuses);
-			return -1;
+			out = 0;
+		} else {
+			if (TRACE)
+				printf("Match found\n");
+			out = 1;
 		}
-		if (TRACE)
-			printf("Match found\n");
-		return 1;
 	}
 	if (TRACE)
 		printf("Match not found -- next consecutive damage is not %u\n", arrangement->value);
-	return 0;
+
+	add_map(map, statuses, arrangement->value+1, out);
+	return out;
 }
 
-unsigned long long matching_unknown_arrangements(char *statuses, struct Node *arrangements) {
+unsigned long long matching_unknown_arrangements(char *statuses, struct Node *arrangements, struct Map *map) {
 	unsigned long long matching = 0;
 
 	for (int i = 0; statuses[i]; i++) {
@@ -166,7 +165,7 @@ unsigned long long matching_unknown_arrangements(char *statuses, struct Node *ar
 			}
 		}
 		else if (statuses[i] == DAMAGED) {
-			if (matching_arrangement(statuses+i, arrangements) == 1) {
+			if (matching_arrangement(statuses+i, arrangements, map) == 1) {
 				i += arrangements->value;
 				arrangements = arrangements->next;
 			} else {
@@ -174,14 +173,15 @@ unsigned long long matching_unknown_arrangements(char *statuses, struct Node *ar
 			}
 		} else if (statuses[i] == UNKNOWN) {
 			statuses[i] = DAMAGED;
-			if (matching_arrangement(statuses+i, arrangements) == 1) {
+			if (matching_arrangement(statuses+i, arrangements, map) == 1) {
 				uint jump = arrangements->value+1;
 				matching += matching_unknown_arrangements(statuses+i+jump,
-														  arrangements->next);
+														  arrangements->next,
+														  map);
 			}
 
 			statuses[i] = OPERATIONAL;
-			matching += matching_unknown_arrangements(statuses+i+1, arrangements);
+			matching += matching_unknown_arrangements(statuses+i+1, arrangements, map);
 
 			statuses[i] = UNKNOWN;
 			break;
@@ -196,18 +196,10 @@ unsigned long long matching_unknown_arrangements(char *statuses, struct Node *ar
 	return 1;
 }
 
-struct SearchSpace {
-	char **statuses;
-	struct Node **arrangements;
-	uint i;
-	uint range;
-	uint matching;
-};
-
 // Main
 int main() {
-	const char **data  = test0_input;
-	uint height = sizeof(test0_input)/sizeof(data[0]);
+	const char **data  = input;
+	uint height = sizeof(input)/sizeof(data[0]);
 	uint replacements = 5;
 
 	char **statuses = malloc(height * sizeof(char*));
@@ -245,8 +237,10 @@ int main() {
 		}
 	}
 
+	struct Map *map = init_map();
 	unsigned long long total_arrangements = 0;
 	for (int i = 0; i < height; i++) {
+		printf("%u/%u: ", i, height);
 		for (int j = 0; statuses[i][j]; j++) {
 			printf("%c", statuses[i][j]);
 		}
@@ -255,7 +249,7 @@ int main() {
 			printf("%u ", a->value);
 		}
 		printf("\n");
-		unsigned long long ta = matching_unknown_arrangements(statuses[i], arrangements[i]);
+		unsigned long long ta = matching_unknown_arrangements(statuses[i], arrangements[i], map);
 		printf("Arrangements %u\n\n", ta);
 		total_arrangements += ta;
 	}
