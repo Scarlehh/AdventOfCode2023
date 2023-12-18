@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include <pthread.h>
 
 #define TRACE 0
 
@@ -12,6 +11,7 @@
 struct Node {
 	struct Node *next;
 	int value;
+	int output;
 };
 
 struct Node* append_list(struct Node *head, int value) {
@@ -19,6 +19,7 @@ struct Node* append_list(struct Node *head, int value) {
 		head = malloc(sizeof(struct Node));
 		head->next = NULL;
 		head->value = value;
+		head->output = 0;
 	} else {
 		head->next = append_list(head->next, value);
 	}
@@ -40,6 +41,87 @@ enum Status {
 	DAMAGED     = '#',
 	UNKNOWN      = '?'
 };
+
+#define MAP_SIZE 1024
+
+uint hash(char *str, uint meta) {
+    unsigned long hash = 5381;
+    int c;
+
+    while (c = *str++) {
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+	}
+	hash = (hash << 4) + meta;
+
+    return hash % MAP_SIZE;
+}
+
+uint str_meta_enc(char *str, uint meta) {
+	uint enc = 0;
+	char c;
+	while (c = *str++) {
+		if (c == OPERATIONAL) {
+			enc |= 0x1;
+		} else if (c == DAMAGED) {
+			enc |= 0x2;
+		} else if (c == UNKNOWN) {
+			enc |= 0x3;
+		}
+		enc << 2;
+	}
+	enc = (enc << 4) + meta;
+	return enc;
+}
+
+struct Map {
+	struct Node *mappings[MAP_SIZE];
+};
+
+struct Map *init_map() {
+	struct Map *map = malloc(sizeof(struct Map));
+	for (int i = 0; i < MAP_SIZE; i++) {
+		map->mappings[i] = NULL;
+	}
+	return map;
+}
+
+struct Node* add_map(struct Map *map, char **input, uint meta) {
+	uint key = hash(input, meta);
+	uint enc = str_meta_enc(input, meta);
+	map->mappings[key] = append_list(map->mappings[key], enc);
+	if (TRACE) {
+		printf("Adding %s %u to map\n", input, meta);
+	}
+	return map->mappings[key];
+}
+
+char **get_map(struct Map *map, char **input, uint meta) {
+	uint key = hash(input, meta);
+	uint enc = str_meta_enc(input, meta);
+	for_each_node(map->mappings[key], node) {
+		if (node->value == enc) {
+			if (TRACE)
+				printf("Looked up %p and found %p\n", input, node->output);
+			return node->output;
+		}
+	}
+	if (TRACE)
+		printf("Looked up %p and missed\n", input);
+	return NULL;
+}
+
+struct Node* update_map(struct Map *map, char **input, uint meta, uint output) {
+	uint key = hash(input, meta);
+	uint enc = str_meta_enc(input, meta);
+	for_each_node(map->mappings[key], node) {
+		if (node->value == enc) {
+			if (TRACE)
+				printf("Adding result %u to %s %u\n", output, input, meta);
+			node->output = output;
+			return node;
+		}
+	}
+}
 
 uint consecutively_damaged(char *statuses, uint damaged_amount, uint ignore_unknown) {
 	uint consecutive = 0;
@@ -122,20 +204,10 @@ struct SearchSpace {
 	uint matching;
 };
 
-void *thread_matching_unknown_arrangements(void *vargp) {
-	struct SearchSpace *search_space = (struct SearchSpace*) vargp;
-
-	for (int i = search_space->i; i < search_space->range; i++) {
-		search_space->matching += matching_unknown_arrangements(search_space->statuses[i],
-																search_space->arrangements[i]);
-		printf("%u/%u\n", i, search_space->range);
-	}
-}
-
 // Main
 int main() {
-	const char **data  = input;
-	uint height = sizeof(input)/sizeof(data[0]);
+	const char **data  = test0_input;
+	uint height = sizeof(test0_input)/sizeof(data[0]);
 	uint replacements = 5;
 
 	char **statuses = malloc(height * sizeof(char*));
@@ -183,35 +255,12 @@ int main() {
 			printf("%u ", a->value);
 		}
 		printf("\n");
-		//unsigned long long ta = matching_unknown_arrangements(statuses[i], arrangements[i]);
-		//printf("Arrangements %u\n\n", ta);
-		//total_arrangements += ta;
+		unsigned long long ta = matching_unknown_arrangements(statuses[i], arrangements[i]);
+		printf("Arrangements %u\n\n", ta);
+		total_arrangements += ta;
 	}
 	printf("\n");
 
-	uint threads = 4;
-	pthread_t *thread_id = malloc(threads * sizeof(pthread_t));
-	struct SearchSpace *search_space = malloc(threads * sizeof(struct SearchSpace*));
-	for (int i = 0; i < threads; i++) {
-		search_space[i].statuses = statuses;
-		search_space[i].arrangements = arrangements;
-		search_space[i].i = (height/threads) * i;
-		search_space[i].range = (height/threads) * (i+1);
-		if (i+1 == threads) {
-			search_space[i].range = height;
-		}
-		search_space[i].matching = 0;
-		printf("Thread %u %u\n", search_space[i].i, search_space[i].range);
-
-		pthread_create(&thread_id[i], NULL, thread_matching_unknown_arrangements, (void *) &search_space[i]);
-	}
-
-	for (int i = 0; i < threads; i++) {
-		pthread_join(thread_id[i], NULL);
-		uint ta = search_space[i].matching;
-		printf("Arrangements: %u\n", ta);
-		total_arrangements += ta;
-	}
 	printf("Total arrangements: %u\n", total_arrangements);
 
 	return 0;
